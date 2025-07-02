@@ -1,19 +1,18 @@
 import { createRoot } from "react-dom/client";
 import "./main.css";
+import { useState } from "react";
 
 function App() {
+  const [value, setValue] = useState("");
   return (
     <div>
       <div>
-        Hello{" "}
-        <span>
-          <i>Enter your name</i>
-        </span>
+        Hello <span>{value || <i>Enter your name</i>}</span>
       </div>
       <input
-        value=""
+        value={value}
         placeholder="Your name"
-        onKeyDown={(event) => console.log(event)}
+        onKeyDown={(event) => setValue(event.target.value + event.key)}
       />
     </div>
   );

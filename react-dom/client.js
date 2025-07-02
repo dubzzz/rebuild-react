@@ -62,6 +62,16 @@ function reconcile(fiber, prevChildren) {
  */
 function traverse(fiber) {
   if (typeof fiber.type === "function") {
+    globalThis.currentFiber = fiber;
+    fiber.hookInitMode = fiber.hooks == null;
+    fiber.hooks = fiber.hooks || [];
+    fiber.hookIndex = 0;
+    fiber.rerender = () => {
+      traverse(fiber);
+      deletions.forEach(commitDeletion);
+      deletions.splice(0, deletions.length);
+      commit(fiber);
+    };
     const prevChildren = fiber.children;
     fiber.children = [fiber.type(fiber.props)];
     reconcile(fiber, prevChildren);
