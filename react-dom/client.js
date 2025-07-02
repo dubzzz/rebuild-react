@@ -4,6 +4,8 @@
  * @typedef {{ type: string | ((props: any) => JSX); props: object }} JSX
  */
 
+const deletions = [];
+
 /**
  * @param {Fiber} fiber
  */
@@ -25,12 +27,33 @@ function sanitize(fiber) {
 
 /**
  * @param {Fiber} fiber
+ * @param {Fiber[]|undefined} prevChildren
  */
-function reconcile(fiber) {
+function reconcile(fiber, prevChildren) {
   sanitize(fiber);
-  for (const child of fiber.children) {
-    child.parent = fiber;
-    traverse(child);
+  for (
+    let index = 0;
+    index !== Math.max(fiber.children.length, (prevChildren || []).length);
+    ++index
+  ) {
+    const child = fiber.children[index];
+    const prevChild = prevChildren && prevChildren[index];
+    if (child?.type !== prevChild?.type) {
+      if (child) {
+        child.parent = fiber;
+        traverse(child);
+      }
+      if (prevChild) {
+        deletions.push(prevChild);
+      }
+    } else {
+      fiber.children[index] = prevChild;
+      prevChild.parent = fiber;
+      prevChild.prevProps = prevChild.props;
+      prevChild.props = child.props;
+      prevChild.content = child.content;
+      traverse(prevChild);
+    }
   }
 }
 
@@ -39,26 +62,36 @@ function reconcile(fiber) {
  */
 function traverse(fiber) {
   if (typeof fiber.type === "function") {
+    const prevChildren = fiber.children;
     fiber.children = [fiber.type(fiber.props)];
-    reconcile(fiber);
+    reconcile(fiber, prevChildren);
     return;
   }
   if (typeof fiber.type === "string") {
+    const prevChildren = fiber.children;
     fiber.children = Array.isArray(fiber.props.children)
       ? fiber.props.children
       : fiber.props.children != null
       ? [fiber.props.children]
       : [];
-    reconcile(fiber);
+    reconcile(fiber, prevChildren);
   }
 }
 
 /**
  * @param {HTMLElement} node
- * @param {object} props
+ * @param {object} prevProps
+ * @param {object} nextProps
  */
-function updateDom(node, props) {
-  for (const [key, value] of Object.entries(props)) {
+function updateDom(node, prevProps, nextProps) {
+  for (const [key, value] of Object.entries(prevProps)) {
+    if (key.startsWith("on")) {
+      node.removeEventListener(key.substring(2).toLocaleLowerCase(), value);
+    } else if (key !== "children") {
+      node.removeAttribute(key);
+    }
+  }
+  for (const [key, value] of Object.entries(nextProps)) {
     if (key.startsWith("on")) {
       node.addEventListener(key.substring(2).toLocaleLowerCase(), value);
     } else if (key !== "children") {
@@ -90,12 +123,27 @@ function commit(fiber) {
         : document.createElement(fiber.type);
   }
   if (fiber.dom) {
-    updateDom(fiber.dom, fiber.props);
+    updateDom(fiber.dom, fiber.prevProps || {}, fiber.props);
+    if (fiber.type === "text") {
+      fiber.dom.nodeValue = fiber.content;
+    }
     parentDom.appendChild(fiber.dom);
   }
   for (const child of fiber.children) {
     commit(child);
   }
+}
+
+/**
+ * @param {Fiber} fiber
+ */
+function commitDeletion(fiber) {
+  const parentDom = closestParentDom(fiber);
+  let current = fiber;
+  while (!fiber.dom) {
+    current = fiber.children[0];
+  }
+  parentDom.removeChild(current.dom);
 }
 
 /** @typedef {JSX & { children?: Fiber[]; parent?: Fiber; dom?: HTMLElement }} Fiber */
@@ -114,6 +162,8 @@ export const createRoot = (rootElement) => {
         dom: rootElement,
       };
       traverse(rootFiber);
+      deletions.forEach(commitDeletion);
+      deletions.splice(0, deletions.length);
       commit(rootFiber.children[0]);
     },
   };
