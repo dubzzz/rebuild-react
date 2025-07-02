@@ -33,6 +33,20 @@ function traverse(fiber) {
 }
 
 /**
+ * @param {HTMLElement} node
+ * @param {object} props
+ */
+function updateDom(node, props) {
+  for (const [key, value] of Object.entries(props)) {
+    if (key.startsWith("on")) {
+      node.addEventListener(key.substring(2).toLocaleLowerCase(), value);
+    } else if (key !== "children") {
+      node.setAttribute(key, String(value));
+    }
+  }
+}
+
+/**
  * @param {Fiber} fiber
  */
 function commit(fiber) {
@@ -43,6 +57,7 @@ function commit(fiber) {
         ? document.createTextNode(fiber.content)
         : document.createElement(fiber.type);
   }
+  updateDom(fiber.dom, fiber.props);
   parentDom.appendChild(fiber.dom);
   for (const child of fiber.children) {
     console.log({ child });
