@@ -1,18 +1,13 @@
 // @ts-check
 
 /**
- * @typedef {{ type: string; props: object }} JSX
+ * @typedef {{ type: string | ((props: any) => JSX); props: object }} JSX
  */
 
 /**
  * @param {Fiber} fiber
  */
-function traverse(fiber) {
-  fiber.children = Array.isArray(fiber.props.children)
-    ? fiber.props.children
-    : fiber.props.children != null
-    ? [fiber.props.children]
-    : [];
+function sanitize(fiber) {
   for (let index = 0; index !== fiber.children.length; ++index) {
     const child = fiber.children[index];
     if (typeof child === "string") {
@@ -26,9 +21,35 @@ function traverse(fiber) {
       };
     }
   }
+}
+
+/**
+ * @param {Fiber} fiber
+ */
+function reconcile(fiber) {
+  sanitize(fiber);
   for (const child of fiber.children) {
     child.parent = fiber;
     traverse(child);
+  }
+}
+
+/**
+ * @param {Fiber} fiber
+ */
+function traverse(fiber) {
+  if (typeof fiber.type === "function") {
+    fiber.children = [fiber.type(fiber.props)];
+    reconcile(fiber);
+    return;
+  }
+  if (typeof fiber.type === "string") {
+    fiber.children = Array.isArray(fiber.props.children)
+      ? fiber.props.children
+      : fiber.props.children != null
+      ? [fiber.props.children]
+      : [];
+    reconcile(fiber);
   }
 }
 
@@ -49,18 +70,30 @@ function updateDom(node, props) {
 /**
  * @param {Fiber} fiber
  */
+function closestParentDom(fiber) {
+  let current = fiber.parent;
+  while (!current.dom) {
+    current = current.parent;
+  }
+  return current.dom;
+}
+
+/**
+ * @param {Fiber} fiber
+ */
 function commit(fiber) {
-  const parentDom = fiber.parent.dom;
-  if (!fiber.dom) {
+  const parentDom = closestParentDom(fiber);
+  if (!fiber.dom && typeof fiber.type === "string") {
     fiber.dom =
       fiber.type === "text"
         ? document.createTextNode(fiber.content)
         : document.createElement(fiber.type);
   }
-  updateDom(fiber.dom, fiber.props);
-  parentDom.appendChild(fiber.dom);
+  if (fiber.dom) {
+    updateDom(fiber.dom, fiber.props);
+    parentDom.appendChild(fiber.dom);
+  }
   for (const child of fiber.children) {
-    console.log({ child });
     commit(child);
   }
 }

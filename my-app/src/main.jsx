@@ -1,18 +1,22 @@
 import { createRoot } from "react-dom/client";
 import "./main.css";
 
-createRoot(document.getElementById("root")).render(
-  <div>
+function App() {
+  return (
     <div>
-      Hello{" "}
-      <span>
-        <i>Enter your name</i>
-      </span>
+      <div>
+        Hello{" "}
+        <span>
+          <i>Enter your name</i>
+        </span>
+      </div>
+      <input
+        value=""
+        placeholder="Your name"
+        onKeyDown={(event) => console.log(event)}
+      />
     </div>
-    <input
-      value=""
-      placeholder="Your name"
-      onKeyDown={(event) => console.log(event)}
-    />
-  </div>
-);
+  );
+}
+
+createRoot(document.getElementById("root")).render(<App />);
